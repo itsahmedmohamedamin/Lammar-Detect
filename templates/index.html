@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <title>Upload Image to S3</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: white;
+        }
+        .pop-up {
+            animation: popup 1s ease-in-out;
+        }
+        @keyframes popup {
+            0% {
+                transform: scale(0.5);
+                opacity: 0;
+            }
+            50% {
+                transform: scale(1.2);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        @keyframes moveUpDown {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-5px);
+            }
+        }
+        .home {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            background-image: url('https://dam-assets.fluke.com/s3fs-public/6012347a-en-Ti-blog-post-image-elec-utilities-sub-ironbow-1500x1000.jpg');
+            background-size: cover;
+            background-position: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .home .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        .home .overlay .content {
+            color: white;
+            z-index: 2;
+        }
+        .home .overlay .content h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        .home .overlay .content h4 {
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .home .content .detecting-btn{
+            background-color: #64dcc8;
+            border: none;
+            margin-top: 2rem;
+            transition: 0.3s ease;
+            font-size: 1rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 5px 18px 5px 5px !important;
+            clip-path: polygon(0 0, 92% 0%, 100% 25%, 100% 100%, 0 100%) !important;
+        }
+        .home .content .detecting-btn:hover{
+            color: black;
+            background-color: #53b7a6;
+        }
+
+        .file-upload-wrapper {
+            position: relative;
+            width: 100%;
+            border: 2px dashed #b400dc;
+            border-radius: 10px;
+            padding: 3rem;
+            transition: background-color 0.3s ease;
+        }
+        .file-upload-wrapper.dragover {
+            background-color: #f3e6f7;
+        }
+        .file-upload-wrapper .file-upload-message {
+            text-align: center;
+            font-size: 18px;
+            color: #b400dc;
+        }
+        .file-upload-wrapper input[type="file"] {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+        #originalImage, #processedImage {
+            display: none;
+            margin: auto;
+        }
+        .image-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+        #progressContainer {
+            display: none;
+            margin: auto;
+            width: 100%;
+            padding: 6px;
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 6px;
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25), 0 1px rgba(255, 255, 255, 0.08);
+        }
+        .progress-bar {
+            height: 18px;
+            background-color: #b400dc;  
+            border-radius: 4px; 
+            transition: 0.4s linear;  
+            transition-property: width, background-color;
+        }
+        .progress-striped .progress-bar {
+            background-color: #b400dc; 
+            background-image: linear-gradient(
+                45deg, #b400dc 25%, 
+                transparent 25%, transparent 50%, 
+                #b400dc 50%, #b400dc 75%,
+                transparent 75%, transparent); 
+            animation: progressAnimationStrike 6s;
+        }
+        @keyframes progressAnimationStrike {
+            from { width: 0 }
+            to { width: 100% }
+        }
+        .home .scroll-down {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            color: white;
+            animation: bounce 2s infinite;
+        }
+        .home .scroll-down a {
+            text-decoration: none;
+            color: inherit;
+        }
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {
+                transform: translateX(-50%) translateY(0);
+            }
+            40% {
+                transform: translateX(-50%) translateY(-10px);
+            }
+            60% {
+                transform: translateX(-50%) translateY(-5px);
+            }
+        }
+
+        #fileName {
+            font-size: 18px;
+            font-weight: bold;
+            color: #b400dc;
+            text-align: center;
+            animation: fadeIn 1s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .image-label {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        #typed-text {
+            display: inline; /* Ensure inline display for proper cursor alignment */
+            font-size: 1.5rem;
+            
+        }
+
+        .typed-cursor {
+            font-size: 1.5rem; /* Match cursor size to the text */
+            display: inline-block;
+            /* vertical-align: middle;  */
+        }
+        @media (max-width: 1200px) {
+            .home .overlay .content h1 {
+                font-size: 2.5rem;
+            }
+
+            .home .overlay .content h4 {
+                font-size: 1.25rem;
+            }
+        }
+
+        @media (max-width: 992px) {
+            .home .overlay .content h1 {
+                font-size: 2rem;
+            }
+
+            .home .overlay .content h4 {
+                font-size: 1rem;
+            }
+
+            .home .content .detecting-btn {
+                font-size: 0.875rem;
+                padding: 0.5rem 1rem;
+            }
+
+            .file-upload-wrapper {
+                padding: 2rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .home .overlay .content h1 {
+                font-size: 2.5rem;
+            }
+
+            .home .overlay .content h4 {
+                font-size: 0.875rem;
+            }
+
+            .home .content .detecting-btn {
+                font-size: 1.3rem;
+                padding: 0.5rem 1.5rem;
+            }
+
+            .file-upload-wrapper {
+                padding: 1.5rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .home .overlay .content h1 {
+                font-size: 2rem;
+            }
+
+            .home .overlay .content h4 {
+                font-size: 0.75rem;
+            }
+
+            .home .content .detecting-btn {
+                font-size: 1.2rem;
+                padding: 0.5rem 1.9rem;
+                margin-top: 10px;
+            }
+
+            .file-upload-wrapper {
+                padding: 2rem;
+            }
+            .processed{
+                margin-top: 2rem;
+            }
+        }
+    </style>
+    
+</head>
+<body>
+    <div class="home">
+        <div class="overlay">
+            <div class="content pop-up container">
+                <h1>Welcome to the Image Detector</h1>
+                <h4 id="typed-text"></h4><br>
+                <a class="btn btn-primary detecting-btn" href="#next-div">Start Detecting</a>
+            </div>
+        </div>
+        <div class="scroll-down">
+            <a href="#next-div">
+                <i class="fas fa-chevron-down"></i>
+            </a>
+        </div>
+    </div>
+      
+    
+    
+    <div id="next-div" class="container my-5">
+        <form id="uploadForm" enctype="multipart/form-data" class="mb-4">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <div id="fileUploadWrapper" class="file-upload-wrapper">
+                            <input type="file" name="file" id="file" class="form-control" required>
+                            <div class="file-upload-message">
+                                Drag and drop a file here or click to select a file
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 d-flex flex-column justify-content-between">
+                    <div class="mb-3">
+                        <label for="category" class="form-label">Choose Your Category</label>
+                        <select name="category" id="category" class="form-select">
+                            <option value="crack">Crack</option>
+                            <option value="anomaly">Anomaly</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <button type="submit" class="btn btn-success w-100" style="background-color: #b400dc;border: none;">Upload Image</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+        <div class="image-container row">
+            <div class="col-md-6 text-center original">
+                <div class="image-label" id="originalImageLabel" style="display: none;">Original Image</div>
+                <img id="originalImage" src="" alt="Original Image will appear here" class="img-fluid">
+                <div id="fileName"></div>
+            </div>
+            <div class="col-md-6 text-center processed">
+                <div class="image-label" id="processedImageLabel" style="display: none;">Processed Image</div>
+                <div id="progressContainer" class="progress progress-striped">
+                    <div id="progressBar" class="progress-bar"></div>
+                </div>
+                <img id="processedImage" src="" alt="" class="img-fluid">
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/typed.js@2.0.12"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const options = {
+            strings: [
+                "Lorem ipsum dolor sit amet consectetur adipisicing elit.",
+                "Nesciunt eligendi animi mollitia fugiat illo quo alias!",
+                "A ab doloremque fuga excepturi, maiores, reiciendis ipsa ad quae velit,",
+                "quisquam aliquid laudantium."
+            ],
+            typeSpeed: 50,
+            backSpeed: 25,
+            loop: true
+        };
+
+        const typed = new Typed("#typed-text", options);
+
+        const fileUploadWrapper = document.getElementById('fileUploadWrapper');
+        const fileInput = document.getElementById('file');
+        const fileNameDisplay = document.getElementById('fileName');
+        const originalImage = document.getElementById('originalImage');
+        const processedImage = document.getElementById('processedImage');
+        const originalImageLabel = document.getElementById('originalImageLabel');
+        const processedImageLabel = document.getElementById('processedImageLabel');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+
+        function resetImages() {
+            originalImage.style.display = 'none';
+            processedImage.style.display = 'none';
+            originalImageLabel.style.display = 'none';
+            processedImageLabel.style.display = 'none';
+            progressContainer.style.display = 'none';
+        }
+
+        fileUploadWrapper.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            fileUploadWrapper.classList.add('dragover');
+        });
+
+        fileUploadWrapper.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            fileUploadWrapper.classList.remove('dragover');
+        });
+
+        fileUploadWrapper.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            fileUploadWrapper.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                resetImages();
+                fileInput.files = e.dataTransfer.files;
+                fileNameDisplay.textContent = `File selected: ${e.dataTransfer.files[0].name}`;
+                fileNameDisplay.style.display = 'block'; // Display the file name
+            }
+        });
+
+        fileUploadWrapper.addEventListener('click', function(e) {
+            if (e.target !== fileInput) {
+                fileInput.click();
+            }
+        });
+
+        fileInput.addEventListener('change', function() {
+            if (fileInput.files.length > 0) {
+                resetImages();
+                fileNameDisplay.textContent = `File selected: ${fileInput.files[0].name}`;
+                fileNameDisplay.style.display = 'block'; // Display the file name
+            }
+        });
+
+        document.getElementById('uploadForm').onsubmit = function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+
+            // Hide previous images
+            resetImages();
+
+            // Display the original image as soon as it's selected
+            if (fileInput.files && fileInput.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    originalImage.src = e.target.result;
+                    originalImage.style.display = 'block';
+                    fileNameDisplay.style.display = 'none';
+                    originalImageLabel.style.display = 'block';
+
+                    // Show progress bar and start animation
+                    progressContainer.style.display = 'block';
+                    progressBar.style.width = '0%'; // reset progress bar width
+                    progressBar.classList.add('progress-bar-animated');
+
+                    // Hide progress bar and display processed image after animation
+                    setTimeout(() => {
+                        progressContainer.style.display = 'none';
+                        processedImage.style.display = 'block';
+                        processedImageLabel.style.display = 'block';
+                    }, 5000); // 5 seconds
+                };
+                reader.readAsDataURL(fileInput.files[0]);
+            }
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/upload', true);
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.link) {
+                        processedImage.src = response.link;
+                    } else {
+                        document.getElementById('message').textContent = 'Upload successful, but no processed image link returned.';
+                    }
+                } else {
+                    document.getElementById('message').textContent = 'Failed to upload image.';
+                }
+            };
+            xhr.onerror = function() {
+                document.getElementById('message').textContent = 'Error uploading image.';
+            };
+            xhr.send(formData);
+        };
+    });
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileUploadWrapper = document.getElementById('fileUploadWrapper');
+            const fileInput = document.getElementById('file');
+            const fileNameDisplay = document.getElementById('fileName');
+            const originalImageLabel = document.getElementById('originalImageLabel');
+            const processedImageLabel = document.getElementById('processedImageLabel');
+    
+            fileUploadWrapper.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                fileUploadWrapper.classList.add('dragover');
+            });
+    
+            fileUploadWrapper.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                fileUploadWrapper.classList.remove('dragover');
+            });
+    
+            fileUploadWrapper.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                fileUploadWrapper.classList.remove('dragover');
+                if (e.dataTransfer.files.length > 0) {
+                    fileInput.files = e.dataTransfer.files;
+                    fileNameDisplay.textContent = `File selected: ${e.dataTransfer.files[0].name}`;
+                }
+            });
+    
+            fileUploadWrapper.addEventListener('click', function(e) {
+                if (e.target !== fileInput) {
+                    fileInput.click();
+                }
+            });
+
+            fileInput.addEventListener('change', function() {
+                if (fileInput.files.length > 0) {
+                    fileNameDisplay.textContent = `File selected: ${fileInput.files[0].name}`;
+                }
+            });
+        });
+    </script>
+
+    <script>
+        document.getElementById('uploadForm').onsubmit = function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            const fileInput = document.querySelector('input[type="file"]');
+            const originalImage = document.getElementById('originalImage');
+            const processedImage = document.getElementById('processedImage');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            const fileNameDisplay = document.getElementById('fileName');
+            const originalImageLabel = document.getElementById('originalImageLabel');
+            const processedImageLabel = document.getElementById('processedImageLabel');
+
+            // Display the original image as soon as it's selected
+            if (fileInput.files && fileInput.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    originalImage.src = e.target.result;
+                    originalImage.style.display = 'block';
+                    fileNameDisplay.style.display = 'none';
+                    originalImageLabel.style.display = 'block';
+                    
+                    // Show progress bar and start animation
+                    progressContainer.style.display = 'block';
+                    progressBar.style.width = '0%'; // reset progress bar width
+                    progressBar.classList.add('progress-bar-animated');
+                    
+                    // Hide progress bar and display processed image after animation
+                    setTimeout(() => {
+                        progressContainer.style.display = 'none';
+                        processedImage.style.display = 'block';
+                        processedImageLabel.style.display = 'block';
+                    }, 5000); // 5 seconds
+                };
+                reader.readAsDataURL(fileInput.files[0]);
+            }
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/upload', true);
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.link) {
+                        processedImage.src = response.link;
+                    } else {
+                        document.getElementById('message').textContent = 'Upload successful, but no processed image link returned.';
+                    }
+                } else {
+                    document.getElementById('message').textContent = 'Failed to upload image.';
+                }
+            };
+            xhr.onerror = function() {
+                document.getElementById('message').textContent = 'Error uploading image.';
+            };
+            xhr.send(formData);
+        };
+    </script>
+</body>
+</html>
